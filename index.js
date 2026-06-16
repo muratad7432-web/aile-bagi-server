@@ -1,6 +1,9 @@
 const admin = require('firebase-admin');
+const fs = require('fs');
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = JSON.parse(
+  fs.readFileSync('/etc/secrets/serviceAccount.json', 'utf8')
+);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -8,7 +11,6 @@ admin.initializeApp({
 });
 
 const db = admin.database();
-
 console.log('Aile Bağı bildirim sunucusu başladı...');
 
 db.ref('chats').on('child_added', (chatSnap) => {
@@ -28,18 +30,19 @@ db.ref('chats').on('child_added', (chatSnap) => {
     const sender = senderSnap.val();
     const senderName = sender ? sender.name : 'Biri';
 
-    await admin.messaging().send({
-      token: receiver.fcmToken,
-      notification: {
-        title: senderName,
-        body: msg.text
-      },
-      android: {
-        priority: 'high'
-      }
-    });
-
-    console.log('Bildirim gönderildi: ' + receiverId);
+    try {
+      await admin.messaging().send({
+        token: receiver.fcmToken,
+        notification: {
+          title: senderName,
+          body: msg.text
+        },
+        android: { priority: 'high' }
+      });
+      console.log('Bildirim gönderildi: ' + receiverId);
+    } catch (e) {
+      console.log('Bildirim hatası: ' + e.message);
+    }
   });
 });
 
@@ -52,20 +55,21 @@ db.ref('groupChat').on('child_added', async (msgSnap) => {
     const user = userSnap.val();
     if (!user || !user.fcmToken || user.uid === msg.senderId) return;
 
-    await admin.messaging().send({
-      token: user.fcmToken,
-      notification: {
-        title: '👨‍👩‍👧‍👦 ' + msg.senderName,
-        body: msg.text
-      },
-      android: {
-        priority: 'high'
-      }
-    });
+    try {
+      await admin.messaging().send({
+        token: user.fcmToken,
+        notification: {
+          title: '👨‍👩‍👧‍👦 ' + msg.senderName,
+          body: msg.text
+        },
+        android: { priority: 'high' }
+      });
+    } catch (e) {
+      console.log('Grup bildirim hatası: ' + e.message);
+    }
   });
 });
 
-// Sunucuyu ayakta tut
 const http = require('http');
 http.createServer((req, res) => {
   res.end('Aile Bağı Server Çalışıyor');
