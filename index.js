@@ -13,6 +13,11 @@ admin.initializeApp({
 const db = admin.database();
 console.log('Aile Bağı bildirim sunucusu başladı...');
 
+// Bağlantı testi
+db.ref('.info/connected').on('value', (snap) => {
+  console.log('Firebase bağlantısı:', snap.val() ? 'BAĞLI ✅' : 'KESİLDİ ❌');
+});
+
 // ─────────────────────────────────────────────
 // YARDIMCI: FCM token ile bildirim gönder
 // ─────────────────────────────────────────────
