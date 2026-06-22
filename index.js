@@ -2,6 +2,7 @@ const admin = require('firebase-admin');
 const fs = require('fs');
 
 const serviceAccount = JSON.parse(
+  process.env.FIREBASE_SERVICE_ACCOUNT ||
   fs.readFileSync('/etc/secrets/serviceAccount.json', 'utf8')
 );
 
