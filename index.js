@@ -103,10 +103,10 @@ db.ref('grupMesajlari').on('child_added', (aileSnap) => {
 // ─────────────────────────────────────────────
 // ÖZEL MESAJLAR: ozelMesajlar/{sohbetId}/{mesajId}
 // ─────────────────────────────────────────────
-db.ref('ozelMesajlar').on('child_added', (sohbetSnap) => {
+db.ref('mesajlar').on('child_added', (sohbetSnap) => {
   const sohbetId = sohbetSnap.key;
 
-  db.ref('ozelMesajlar/' + sohbetId).on('child_added', async (mesajSnap) => {
+  db.ref('mesajlar/' + sohbetId).on('child_added', async (mesajSnap) => {
     const msg = mesajSnap.val();
     if (!msg || !msg.gonderenId || !msg.zaman) return;
 
