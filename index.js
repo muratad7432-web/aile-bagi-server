@@ -74,7 +74,7 @@ db.ref('grupMesajlari').on('child_added', (aileSnap) => {
           user.fcmToken,
           '👨‍👩‍👧 ' + gonderenAd,
           icerik,
-          { tip: 'grup' }  // Android'e gidecek data
+          { tip: 'grup' }
         ));
         console.log('Grup bildirimi → ' + (user.ad || uid));
       });
@@ -135,8 +135,19 @@ db.ref('mesajlar').on('child_added', (sohbetSnap) => {
 // ─────────────────────────────────────────────
 const http = require('http');
 http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Aile Bağı Sunucusu Çalışıyor ✅');
+  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.end('{"status":"Çalışıyor ✅"}');
 }).listen(process.env.PORT || 3000, () => {
   console.log('HTTP sunucu port ' + (process.env.PORT || 3000) + ' üzerinde çalışıyor');
 });
+
+// ─────────────────────────────────────────────
+// UYANIK TUT — Her 14 dakikada kendine ping at
+// ─────────────────────────────────────────────
+setInterval(() => {
+  http.get('https://fcm-backend-jpcf.onrender.com/', (res) => {
+    console.log('Uyanık tut ping ✅ — durum:', res.statusCode);
+  }).on('error', (e) => {
+    console.log('Ping hatası:', e.message);
+  });
+}, 14 * 60 * 1000);
