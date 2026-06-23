@@ -13,28 +13,23 @@ admin.initializeApp({
 const db = admin.database();
 console.log('Aile Bağı bildirim sunucusu başladı...');
 
-// Bağlantı testi
+// Firebase bağlantı kontrolü
 db.ref('.info/connected').on('value', (snap) => {
   console.log('Firebase bağlantısı:', snap.val() ? 'BAĞLI ✅' : 'KESİLDİ ❌');
 });
 
 // ─────────────────────────────────────────────
-// YARDIMCI: FCM token ile bildirim gönder
+// YARDIMCI: FCM bildirimi gönder
 // ─────────────────────────────────────────────
-async function bildirimGonder(token, baslik, icerik) {
+async function bildirimGonder(token, baslik, icerik, data) {
   try {
     await admin.messaging().send({
       token: token,
-      notification: {
-        title: baslik,
-        body: icerik
-      },
+      notification: { title: baslik, body: icerik },
+      data: data || {},
       android: {
         priority: 'high',
-        notification: {
-          sound: 'default',
-          channelId: 'ailebagi_channel'
-        }
+        notification: { sound: 'default', channelId: 'ailebagi_channel' }
       }
     });
   } catch (e) {
@@ -48,12 +43,9 @@ async function bildirimGonder(token, baslik, icerik) {
 db.ref('grupMesajlari').on('child_added', (aileSnap) => {
   const aileKodu = aileSnap.key;
 
-  // Her aile kodu için mesajları dinle
   db.ref('grupMesajlari/' + aileKodu).on('child_added', async (mesajSnap) => {
     const msg = mesajSnap.val();
     if (!msg || !msg.gonderenId || !msg.zaman) return;
-
-    // Sadece son 10 saniye içindeki mesajlar için bildirim gönder
     if (Date.now() - msg.zaman > 10000) return;
 
     const gonderenId = msg.gonderenId;
@@ -66,11 +58,8 @@ db.ref('grupMesajlari').on('child_added', (aileSnap) => {
     else if (tip === 'ses') icerik = '🎤 Sesli mesaj gönderdi';
 
     try {
-      // Aynı aile koduna sahip tüm kullanıcıları bul
       const usersSnap = await db.ref('kullanicilar')
-        .orderByChild('aileKodu')
-        .equalTo(aileKodu)
-        .get();
+        .orderByChild('aileKodu').equalTo(aileKodu).get();
 
       if (!usersSnap.exists()) return;
 
@@ -78,18 +67,15 @@ db.ref('grupMesajlari').on('child_added', (aileSnap) => {
       usersSnap.forEach((userSnap) => {
         const user = userSnap.val();
         const uid = userSnap.key;
-
-        // Gönderen kişiye bildirim gönderme
         if (uid === gonderenId) return;
         if (!user || !user.fcmToken) return;
 
-        promises.push(
-          bildirimGonder(
-            user.fcmToken,
-            '👨‍👩‍👧 ' + gonderenAd,
-            icerik
-          )
-        );
+        promises.push(bildirimGonder(
+          user.fcmToken,
+          '👨‍👩‍👧 ' + gonderenAd,
+          icerik,
+          { tip: 'grup' }  // Android'e gidecek data
+        ));
         console.log('Grup bildirimi → ' + (user.ad || uid));
       });
 
@@ -101,7 +87,7 @@ db.ref('grupMesajlari').on('child_added', (aileSnap) => {
 });
 
 // ─────────────────────────────────────────────
-// ÖZEL MESAJLAR: ozelMesajlar/{sohbetId}/{mesajId}
+// ÖZEL MESAJLAR: mesajlar/{sohbetId}/{mesajId}
 // ─────────────────────────────────────────────
 db.ref('mesajlar').on('child_added', (sohbetSnap) => {
   const sohbetId = sohbetSnap.key;
@@ -109,13 +95,9 @@ db.ref('mesajlar').on('child_added', (sohbetSnap) => {
   db.ref('mesajlar/' + sohbetId).on('child_added', async (mesajSnap) => {
     const msg = mesajSnap.val();
     if (!msg || !msg.gonderenId || !msg.zaman) return;
-
-    // Sadece son 10 saniye içindeki mesajlar
     if (Date.now() - msg.zaman > 10000) return;
 
     const gonderenId = msg.gonderenId;
-
-    // sohbetId = "uid1_uid2" formatında, alıcıyı bul
     const uidler = sohbetId.split('_');
     if (uidler.length !== 2) return;
     const aliciId = uidler[0] === gonderenId ? uidler[1] : uidler[0];
@@ -135,7 +117,12 @@ db.ref('mesajlar').on('child_added', (sohbetSnap) => {
       const alici = aliciSnap.val();
       if (!alici || !alici.fcmToken) return;
 
-      await bildirimGonder(alici.fcmToken, gonderenAd, icerik);
+      await bildirimGonder(
+        alici.fcmToken,
+        gonderenAd,
+        icerik,
+        { tip: 'ozel', karsiId: gonderenId, karsiAd: gonderenAd }
+      );
       console.log('Özel bildirim → ' + (alici.ad || aliciId));
     } catch (e) {
       console.log('Özel mesaj hatası: ' + e.message);
@@ -151,5 +138,5 @@ http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Aile Bağı Sunucusu Çalışıyor ✅');
 }).listen(process.env.PORT || 3000, () => {
-  console.log('HTTP sunucu port ' + (process.env.PORT || 3000) + " üzerinde çalışıyor");
+  console.log('HTTP sunucu port ' + (process.env.PORT || 3000) + ' üzerinde çalışıyor');
 });
