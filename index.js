@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const fs = require('fs');
+const http = require('http');
 
 const serviceAccount = JSON.parse(
   fs.readFileSync('/etc/secrets/serviceAccount.json', 'utf8')
@@ -13,7 +14,6 @@ admin.initializeApp({
 const db = admin.database();
 console.log('Aile Bağı bildirim sunucusu başladı...');
 
-// Firebase bağlantı kontrolü
 db.ref('.info/connected').on('value', (snap) => {
   console.log('Firebase bağlantısı:', snap.val() ? 'BAĞLI ✅' : 'KESİLDİ ❌');
 });
@@ -24,7 +24,7 @@ db.ref('.info/connected').on('value', (snap) => {
 async function bildirimGonder(token, baslik, icerik, data) {
   try {
     await admin.messaging().send({
-      token: token,
+      token,
       notification: { title: baslik, body: icerik },
       data: data || {},
       android: {
@@ -38,10 +38,18 @@ async function bildirimGonder(token, baslik, icerik, data) {
 }
 
 // ─────────────────────────────────────────────
-// GRUP MESAJLARI: grupMesajlari/{aileKodu}/{mesajId}
+// GRUP MESAJLARI — Düzeltilmiş versiyon
 // ─────────────────────────────────────────────
+const dinlenenAileler = new Set(); // Hangi aile kodları zaten dinleniyor
+
 db.ref('grupMesajlari').on('child_added', (aileSnap) => {
   const aileKodu = aileSnap.key;
+
+  // Bu aile kodu zaten dinleniyorsa tekrar listener açma!
+  if (dinlenenAileler.has(aileKodu)) return;
+  dinlenenAileler.add(aileKodu);
+
+  console.log('Yeni aile dinleniyor: ' + aileKodu);
 
   db.ref('grupMesajlari/' + aileKodu).on('child_added', async (mesajSnap) => {
     const msg = mesajSnap.val();
@@ -87,10 +95,16 @@ db.ref('grupMesajlari').on('child_added', (aileSnap) => {
 });
 
 // ─────────────────────────────────────────────
-// ÖZEL MESAJLAR: mesajlar/{sohbetId}/{mesajId}
+// ÖZEL MESAJLAR — Düzeltilmiş versiyon
 // ─────────────────────────────────────────────
+const dinlenenSohbetler = new Set(); // Hangi sohbetler zaten dinleniyor
+
 db.ref('mesajlar').on('child_added', (sohbetSnap) => {
   const sohbetId = sohbetSnap.key;
+
+  // Bu sohbet zaten dinleniyorsa tekrar listener açma!
+  if (dinlenenSohbetler.has(sohbetId)) return;
+  dinlenenSohbetler.add(sohbetId);
 
   db.ref('mesajlar/' + sohbetId).on('child_added', async (mesajSnap) => {
     const msg = mesajSnap.val();
@@ -133,7 +147,6 @@ db.ref('mesajlar').on('child_added', (sohbetSnap) => {
 // ─────────────────────────────────────────────
 // HTTP — Render.com sunucuyu ayakta tutar
 // ─────────────────────────────────────────────
-const http = require('http');
 http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end('{"status":"Çalışıyor ✅"}');
